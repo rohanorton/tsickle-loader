@@ -1,7 +1,7 @@
 import fs from "fs-extra";
 import * as path from "path";
 import { getOptions } from "loader-utils";
-import { validate } from "schema-utils";
+import validate from "schema-utils";
 import * as Tsickle from "tsickle";
 import ts from "typescript";
 import { EOL } from "os";
