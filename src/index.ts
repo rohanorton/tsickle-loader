@@ -1,7 +1,6 @@
 import fs from "fs-extra";
 import * as path from "path";
 import { getOptions } from "loader-utils";
-import validate from "schema-utils";
 import * as Tsickle from "tsickle";
 import ts from "typescript";
 import { EOL } from "os";
@@ -9,6 +8,10 @@ import { fixCode, fixExtern } from "./fix-output";
 import { jsToTS, tsToJS } from "./path-utils";
 import { JSONSchema7 } from "json-schema";
 // import { TcpSocketConnectOpts } from "net";
+
+const validateModule: any = require("schema-utils");
+
+const validate = validateModule.validate ?? validateModule;
 
 const LOADER_NAME = "tsickle-loader";
 const DEFAULT_EXTERN_DIR = "dist/externs";
