@@ -1,10 +1,9 @@
 {
-  "include": [
-    "./examples/**/*.ts"
-  ],
+  "include": ["./examples/**/*.ts"],
   "compilerOptions": {
     "module": "es2015",
     "moduleResolution": "node",
-    "target": "es5",
+    "target": "es5"
   }
 }
+

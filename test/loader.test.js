@@ -1,80 +1,90 @@
-const compiler = require('./compiler.js')
-const fs = require('fs-extra')
-const path = require('path')
-const ClosureCompilerPlugin = require('closure-webpack-plugin')
+const compiler = require("./compiler.js");
+const fs = require("fs-extra");
+const path = require("path");
+const ClosureCompilerPlugin = require("closure-webpack-plugin");
 
-test('Converts a simple es6 function', async () => {
-  const [output] = await compiler('examples/hello-world.ts')
+test("Converts a simple es6 function", async () => {
+  const [output] = await compiler("examples/hello-world.ts");
 
-  expect(output).toContain('@return {string}')
-})
+  expect(output).toContain("@return {string}");
+});
 
-test('failed to files with invalid imports', async () => {
+test("failed to files with invalid imports", async () => {
   try {
-    await compiler('/examples/invalid-import.ts')
+    await compiler("/examples/invalid-import.ts");
   } catch (e) {
-    console.info(e)
-    expect(e).toBeTruthy()
+    console.info(e);
+    expect(e).toBeTruthy();
   }
-})
+});
 
-test('Handles imports across files', async () => {
-  const [output] = await compiler('examples/single-import.ts')
-  expect(output).toContain('importable(count)')
-})
+test("Handles imports across files", async () => {
+  const [output] = await compiler("examples/single-import.ts");
+  expect(output).toContain("importable(count)");
+});
 
-test('Can process other module types..', async () => {
-  const [output] = await compiler('examples/single-import.ts', {
-    tsconfig: path.resolve(__dirname, 'tsconfig.explicit.json')
-  })
+test("Can process other module types..", async () => {
+  const [output] = await compiler("examples/single-import.ts", {
+    tsconfig: path.resolve(__dirname, "tsconfig.explicit.json"),
+  });
 
-  expect(output).toContain('importable(count)')
-})
+  expect(output).toContain("importable(count)");
+});
 
-test('It will correctly collapse unnecessary modules (tree shaking)', async () => {
-  const [output] = await compiler('examples/dual-import.ts', {
-    tsconfig: path.resolve(__dirname, 'tsconfig.explicit.json')
-  })
+test("It will correctly collapse unnecessary modules (tree shaking)", async () => {
+  const [output] = await compiler("examples/dual-import.ts", {
+    tsconfig: path.resolve(__dirname, "tsconfig.explicit.json"),
+  });
 
-  expect(output).toContain('myRealExport')
-}, 10e3)
+  expect(output).toContain("myRealExport");
+}, 10e3);
 
-test('will work with closure compiler plugin', async () => {
-  const externDir = path.resolve(__dirname, 'tmp', 'externs-' + Math.floor(Math.random() * 10))
-  fs.ensureFileSync(path.resolve(externDir, 'externs.js'))
+test("will work with closure compiler plugin", async () => {
+  const externDir = path.resolve(
+    __dirname,
+    "tmp",
+    "externs-" + Math.floor(Math.random() * 10)
+  );
+  fs.ensureFileSync(path.resolve(externDir, "externs.js"));
 
-  const rules = [{
-    test: /\.tsx?$/,
-    use: {
-      loader: 'babel-loader',
+  const rules = [
+    {
+      test: /\.tsx?$/,
+      loader: "babel-loader",
       options: {
-        presets: ['@babel/preset-typescript']
+        presets: ["@babel/preset-typescript"],
+      },
+    },
+  ];
+
+  const minimizer = [
+    new ClosureCompilerPlugin(
+      {
+        mode: "STANDARD",
+        childCompilations: true,
+      },
+      {
+        externs: [path.resolve(externDir, "externs.js")],
+        // language_in: 'ECMASCRIPT6',
+        jscomp_off: "es5Strict",
+        jscompOff: "es5Strict",
+        languageOut: "ECMASCRIPT5",
+        // strict_mode_input: false,
+        // debug: true,
+        compilation_level: "ADVANCED",
       }
-    }
-  }]
+    ),
+  ];
 
-  const minimizer = [new ClosureCompilerPlugin({
-    mode: 'STANDARD',
-    childCompilations: true
-  }, {
-    externs: [path.resolve(externDir, 'externs.js')],
-    // language_in: 'ECMASCRIPT6',
-    jscomp_off: 'es5Strict',
-    jscompOff: 'es5Strict',
-    languageOut: 'ECMASCRIPT5',
-    // strict_mode_input: false,
-    // debug: true,
-    compilation_level: 'ADVANCED'
-  })]
-
-  const [output] = await compiler('examples/complex-example.ts', {
-    tsconfig: path.resolve(__dirname, 'tsconfig.explicit.json'), // use es2015 modules
-    mode: 'production',
+  const [output] = await compiler("examples/complex-example.ts", {
+    tsconfig: path.resolve(__dirname, "tsconfig.explicit.json"), // use es2015 modules
+    mode: "production",
     rules,
     minimizer,
-    externDir
-  })
+    externDir,
+  });
 
-  fs.writeFileSync('./complex-example.js', output)
-  expect(output).toBeTruthy()
-}, 15e3) // this can be *very* slow
+  // fs.writeFileSync('./complex-example.js', output)
+  expect(output).toBeTruthy();
+}, 15e3); // this can be *very* slow
+

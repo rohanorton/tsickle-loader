@@ -1,59 +1,53 @@
 import fs from "fs-extra";
 import * as path from "path";
-import { getOptions, OptionObject } from "loader-utils";
-import validateOptions = require("schema-utils");
-import tsickle = require("tsickle");
+import { getOptions } from "loader-utils";
+import { validate } from "schema-utils";
+import * as Tsickle from "tsickle";
 import ts from "typescript";
 import { EOL } from "os";
-import webpack = require("webpack");
 import { fixCode, fixExtern } from "./fix-output";
 import { jsToTS, tsToJS } from "./path-utils";
-import { TcpSocketConnectOpts } from "net";
+import { JSONSchema7 } from "json-schema";
+// import { TcpSocketConnectOpts } from "net";
 
 const LOADER_NAME = "tsickle-loader";
 const DEFAULT_EXTERN_DIR = "dist/externs";
 const EXTERNS_FILE_NAME = "externs.js";
 const DEFAULT_CONFIG_FILE = "tsconfig.json";
 
-const optionsSchema = {
+const optionsSchema: JSONSchema7 = {
+  $schema: "http://json-schema.org/draft-07/schema#",
   type: "object",
   properties: {
     tsconfig: {
-      anyOf: [
-        {
-          type: "string"
-        },
-        {
-          type: "boolean"
-        }
-      ]
+      type: "string",
     },
     externDir: {
-      type: "string"
-    }
-  }
+      type: "string",
+    },
+  },
 };
 
-interface RealOptions extends OptionObject {
+interface OptionsFromSchema {
   externDir: string;
   tsconfig: string;
   externFile: string;
   compilerConfig: ReturnType<typeof ts.parseJsonConfigFileContent>;
 }
 
-const setup = (loaderCTX: webpack.loader.LoaderContext): RealOptions => {
-  const options = getOptions(loaderCTX);
-  validateOptions(optionsSchema, options, LOADER_NAME);
+const setup = (loaderCTX: LoaderCTX): OptionsFromSchema => {
+  const options: any = getOptions(loaderCTX);
 
-  const externDir =
-    options.externDir != null ? options.externDir : DEFAULT_EXTERN_DIR;
+  validate(optionsSchema, options, { name: LOADER_NAME });
+
+  options as OptionsFromSchema;
+
+  const externDir = options.externDir ?? DEFAULT_EXTERN_DIR;
   const externFile = path.resolve(externDir, EXTERNS_FILE_NAME);
 
   fs.ensureDirSync(externDir);
-  const tsconfig =
-    typeof options.tsconfig === "string"
-      ? options.tsconfig
-      : DEFAULT_CONFIG_FILE;
+
+  const tsconfig = options.tsconfig ?? DEFAULT_CONFIG_FILE;
 
   const compilerConfigFile = ts.readConfigFile(
     tsconfig,
@@ -74,11 +68,9 @@ const setup = (loaderCTX: webpack.loader.LoaderContext): RealOptions => {
     tsconfig,
     externDir,
     externFile,
-    compilerConfig
+    compilerConfig,
   };
 };
-
-type LoaderCTX = webpack.loader.LoaderContext;
 
 const handleDiagnostics = (
   ctx: LoaderCTX,
@@ -92,19 +84,24 @@ const handleDiagnostics = (
   );
 
   if (type === "error") {
-    ctx.emitError(Error(formatted));
+    ctx.emitError(new Error(formatted));
   } else {
     ctx.emitWarning(formatted);
   }
 };
 
-const tsickleLoader: webpack.loader.Loader = function(
-  this: LoaderCTX,
-  _source: string | Buffer
-) {
+interface LoaderCTX {
+  resourcePath: string;
+  emitError(error: Error): void;
+  emitWarning(warning: string): void;
+}
+
+type Loader = (this: LoaderCTX, source: string | Buffer) => void;
+
+const tsickleLoader: Loader = function (source) {
   const {
     compilerConfig: { options },
-    externFile
+    externFile,
   } = setup(this);
 
   // normalize the path to unix-style
@@ -115,8 +112,8 @@ const tsickleLoader: webpack.loader.Loader = function(
 
   const diagnosticsHost: ts.FormatDiagnosticsHost = {
     getNewLine: () => EOL,
-    getCanonicalFileName: fileName => fileName,
-    getCurrentDirectory: () => path.dirname(sourceFileName)
+    getCanonicalFileName: (fileName) => fileName,
+    getCurrentDirectory: () => path.dirname(sourceFileName),
   };
 
   if (diagnostics.length > 0) {
@@ -124,7 +121,7 @@ const tsickleLoader: webpack.loader.Loader = function(
     return;
   }
 
-  const tsickleHost: tsickle.TsickleHost = {
+  const tsickleHost: Tsickle.TsickleHost = {
     shouldSkipTsickleProcessing: (filename: string) =>
       sourceFileName !== filename,
     shouldIgnoreWarningsForPath: () => false,
@@ -138,20 +135,16 @@ const tsickleLoader: webpack.loader.Loader = function(
     transformTypesToClosure: true,
     typeBlackListPaths: new Set(),
     untyped: false,
-    logWarning: warning =>
-      handleDiagnostics(this, [warning], diagnosticsHost, "warning")
+    logWarning: (warning) =>
+      handleDiagnostics(this, [warning], diagnosticsHost, "warning"),
   };
 
   const jsFiles = new Map<string, string>();
 
-  const output = tsickle.emitWithTsickle(
-    program,
-    tsickleHost,
-    compilerHost,
-    options,
-    undefined,
-    (path: string, contents: string) => jsFiles.set(path, contents)
-  );
+  const writeFile = (path: string, contents: string) =>
+    jsFiles.set(path, contents);
+
+  const output = Tsickle.emit(program, tsickleHost, writeFile);
 
   const sourceFileAsJs = tsToJS(sourceFileName);
   for (const [path, source] of jsFiles) {
