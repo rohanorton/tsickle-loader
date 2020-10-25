@@ -8,6 +8,7 @@
   "license": "MIT",
   "sideEffects": false,
   "scripts": {
+    "prepare": "npm run build",
     "build": "tsc -p tsconfig.json",
     "test": "rm -rf ./test/tmp/* && jest"
   },
